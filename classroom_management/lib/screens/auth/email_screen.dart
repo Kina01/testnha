@@ -1,6 +1,7 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:classroom_management/services/auth/register_service.dart';
+import 'package:classroom_management/screens/auth/register_screen.dart';
 
 class EmailScreen extends StatefulWidget {
   const EmailScreen({Key? key}) : super(key: key);
@@ -11,9 +12,9 @@ class EmailScreen extends StatefulWidget {
 
 class _EmailScreenState extends State<EmailScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _fullnameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _verificationCodeController = TextEditingController();
+  final RegisterService _registerService = RegisterService();
 
   bool _isLoading = false;
   bool _isResendEnabled = false;
@@ -29,13 +30,17 @@ class _EmailScreenState extends State<EmailScreen> {
   @override
   void dispose() {
     _timer.cancel();
-    _fullnameController.dispose();
     _emailController.dispose();
     _verificationCodeController.dispose();
     super.dispose();
   }
 
   void _startCountdown() {
+    setState(() {
+      _countdownTime = 60;
+      _isResendEnabled = false;
+    });
+    
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_countdownTime > 0) {
         setState(() {
@@ -50,32 +55,89 @@ class _EmailScreenState extends State<EmailScreen> {
     });
   }
 
-  void _resendVerificationCode() {
+  Future<void> _sendVerificationCode() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_emailController.text.isEmpty) return;
+
     setState(() {
-      _isResendEnabled = false;
-      _countdownTime = 60;
-      _verificationCodeController.clear();
+      _isLoading = true;
     });
-    _startCountdown();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Mã xác minh mới đã được gửi!'),
-        backgroundColor: Colors.green[700],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+
+    final response = await _registerService.sendVerificationCode(_emailController.text);
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (response.status == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.message),
+          backgroundColor: Colors.green[700],
+        ),
+      );
+      _startCountdown();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.message),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
+  }
+
+  Future<void> _verifyCode() async {
+    if (_verificationCodeController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Vui lòng nhập mã xác minh'),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final response = await _registerService.verifyCode(
+      _emailController.text,
+      _verificationCodeController.text,
     );
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (response.status == 'success') {
+      // Chuyển sang màn hình đăng ký với email đã xác thực
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RegisterScreen(
+            email: _emailController.text,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response.message),
+          backgroundColor: Colors.red[700],
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Đăng ký tài khoản'),
+        title: const Text('Xác thực email'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -85,10 +147,10 @@ class _EmailScreenState extends State<EmailScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              const FlutterLogo(size: 80),
+              const Icon(Icons.email, size: 80, color: Colors.blue),
               const SizedBox(height: 20),
               const Text(
-                'Tạo tìa khoản mới',
+                'Xác thực email',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -98,35 +160,12 @@ class _EmailScreenState extends State<EmailScreen> {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Vui lòng điền đầy đủ thông tin bên dưới',
+                'Vui lòng nhập email để nhận mã xác minh',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey,
                 ),
                 textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-              TextFormField(
-                controller: _fullnameController,
-                decoration: InputDecoration(
-                  labelText: "Họ và tên",
-                  hintText: "Nhập họ và tên đầy đủ",
-                  prefixIcon: const Icon(Icons.person),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Vui lòng nhập họ và tên';
-                  }
-                  if (value.length < 3) {
-                    return 'Họ và tên phải có ít nhất 3 ký tự';
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 20),
               TextFormField(
@@ -153,7 +192,21 @@ class _EmailScreenState extends State<EmailScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              // Phần mã xác minh
+              ElevatedButton(
+                onPressed: _isLoading ? null : _sendVerificationCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Gửi mã xác minh'),
+              ),
+              const SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
@@ -178,7 +231,7 @@ class _EmailScreenState extends State<EmailScreen> {
                   Expanded(
                     flex: 1,
                     child: TextButton(
-                      onPressed: _isResendEnabled ? _resendVerificationCode : null,
+                      onPressed: _isResendEnabled && !_isLoading ? _sendVerificationCode : null,
                       style: TextButton.styleFrom(
                         foregroundColor: Colors.blue,
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -187,19 +240,34 @@ class _EmailScreenState extends State<EmailScreen> {
                         ),
                       ),
                       child: Text(
-                        _isResendEnabled ? 'Gửi lại' : 'Gửi lại (${_countdownTime}s)',
+                        _isResendEnabled ? 'Gửi lại' : '(${_countdownTime}s)',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: _isResendEnabled ? Colors.blue : Colors.grey,
-                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
                 ],
-              )
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _verifyCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Xác minh và tiếp tục'),
+              ),
             ],
-          ))
+          ),
+        ),
       ),
     );
   }

@@ -29,18 +29,18 @@ public class LoginController {
             boolean check = loginService.login(login.getEmail(), login.getPassword());
             Map<String, String> response = new HashMap<>();
 
-            if(check) {
+            if(check)
+            {
                 UserEntity user = loginService.findByAccount(login.getEmail());
                 response.put("message", "Đăng nhập thành công!");
                 response.put("id", String.valueOf(user.getId()));
                 response.put("fullname", user.getFullname());
                 response.put("role", user.getRole());
                 return ResponseEntity.ok(response);
-            }            
+            }
             response.put("message", "Đăng nhập thất bại!");
             response.put("status", "error");
             return ResponseEntity.status(400).body(response);
-            
         } catch (Exception e) {
             e.printStackTrace();
             Map<String, String> response = new HashMap<>();

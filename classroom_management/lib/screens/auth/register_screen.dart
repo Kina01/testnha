@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:classroom_management/services/auth/register_service.dart';
+import 'package:classroom_management/models/user_model.dart';
+import 'package:classroom_management/screens/home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key}) : super(key: key);
+  final String email;
+
+  const RegisterScreen({Key? key, required this.email}) : super(key: key);
 
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
@@ -10,41 +15,54 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _fullnameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  final RegisterService _registerService = RegisterService();
 
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
 
-  // Hàm xử lý đăng ký
-  void _handleRegistration() async {
+  Future<void> _handleRegistration() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
-      
-      // Giả lập quá trình đăng ký
-      await Future.delayed(const Duration(seconds: 2));
-      
+
+      final request = RegisterRequest(
+        fullname: _fullnameController.text,
+        email: widget.email,
+        password: _passwordController.text,
+        verificationCode: '', // Đã xác minh trước đó
+      );
+
+      final response = await _registerService.register(request);
+
       setState(() {
         _isLoading = false;
       });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Đăng ký thành công!'),
-          backgroundColor: Colors.green[700],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-      
-      // Điều hướng về màn hình đăng nhập sau khi đăng ký thành công
-      Future.delayed(const Duration(seconds: 1), () {
-        Navigator.pushReplacementNamed(context, '/login');
-      });
+
+      if (response.status == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message),
+            backgroundColor: Colors.green[700],
+          ),
+        );
+        
+        // Chuyển đến màn hình home
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message),
+            backgroundColor: Colors.red[700],
+          ),
+        );
+      }
     }
   }
 
@@ -52,10 +70,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Đăng ký tài khoản'),
+        title: const Text('Hoàn tất đăng ký'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -65,10 +82,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 20),
-              const FlutterLogo(size: 80),
+              const Icon(Icons.person_add, size: 80, color: Colors.blue),
               const SizedBox(height: 20),
               const Text(
-                'Tạo tài khoản mới',
+                'Hoàn tất đăng ký',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -77,20 +94,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
-              const Text(
-                'Vui lòng điền đầy đủ thông tin bên dưới',
-                style: TextStyle(
-                  fontSize: 14,
+              Text(
+                'Email: ${widget.email}',
+                style: const TextStyle(
+                  fontSize: 16,
                   color: Colors.grey,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 30),
               TextFormField(
+                initialValue: widget.email,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: const Icon(Icons.email),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                ),
+                readOnly: true,
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
                 controller: _fullnameController,
                 decoration: InputDecoration(
-                  labelText: "Họ và tên",
-                  hintText: "Nhập họ và tên đầy đủ",
+                  labelText: 'Họ và tên',
+                  hintText: 'Nhập họ và tên đầy đủ',
                   prefixIcon: const Icon(Icons.person),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10.0),
@@ -101,33 +132,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Vui lòng nhập họ và tên';
-                  }
-                  if (value.length < 3) {
-                    return 'Họ và tên phải có ít nhất 3 ký tự';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'example@email.com',
-                  prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10.0),
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                ),
-                keyboardType: TextInputType.emailAddress,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Vui lòng nhập email';
-                  }
-                  if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                    return 'Email không hợp lệ';
                   }
                   return null;
                 },
@@ -214,32 +218,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10.0),
                         ),
-                        elevation: 3,
                       ),
                       child: const Text(
                         'Đăng ký',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Đã có tài khoản?'),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/login');
-                    },
-                    child: const Text(
-                      'Đăng nhập',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -250,7 +234,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _fullnameController.dispose();
-    _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();

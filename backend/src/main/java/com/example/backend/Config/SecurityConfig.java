@@ -13,17 +13,19 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/user/login").permitAll()
-                .requestMatchers("/user/register").permitAll()
-                .anyRequest().authenticated() 
-            );
-
-        return http.build();
-    }
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .csrf(csrf -> csrf.disable())
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/user/login").permitAll()
+            .requestMatchers("/user/register").permitAll()
+            .requestMatchers("/user/send-verification").permitAll()
+            .requestMatchers("/user/check-email").permitAll()
+            .requestMatchers("/user/verify-otp").permitAll()
+            .anyRequest().authenticated()
+        );
+    return http.build();
+}
 
     @Bean
     public PasswordEncoder passwordEncoder() {
